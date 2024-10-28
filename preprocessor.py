@@ -2,10 +2,13 @@ import os
 import pandas as pd
 from pathlib import Path
 from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import BaggingRegressor
+from sklearn.tree import DecisionTreeRegressor
 
+# Load loan data
 def load_loan_data():
     # Create a booster path
     base_dir = Path.home() / "code" / "YannAll" / "raw_data"
@@ -21,6 +24,7 @@ def load_loan_data():
     else:
         raise FileNotFoundError(f"The file {csv_file_path} does not exist. Please check the path.")
 
+# Clean data
 def clean_data(data):
     # Drop duplicate rows
     data = data.drop_duplicates()
@@ -36,15 +40,65 @@ def clean_data(data):
     print("Data cleaned successfully.")
     return data
 
+# Encode categorical variables
+def encode_categorical(data):
+    # Encode categorical features using Label Encoding
+    cat_cols = data.select_dtypes(include=['object']).columns
+    le = LabelEncoder()
+
+    for col in cat_cols:
+        data[col] = le.fit_transform(data[col])
+
+    print("Categorical variables encoded successfully.")
+    return data
+
+# Impute missing values using KNN
+def knn_impute(data):
+    # Select numerical columns for KNN Imputation
+    num_cols = [col for col in data.columns if data[col].dtype in ['int64', 'float64']]
+
+    # Initialize KNN Imputer
+    knn_imputer = KNNImputer(n_neighbors=3)
+
+    # Fit and transform the data
+    data[num_cols] = knn_imputer.fit_transform(data[num_cols])
+
+    print("KNN Imputation completed successfully.")
+    return data
+
+# Tree-based imputation
+def tree_imputation(data):
+    # Define columns with missing values
+    missing_cols = [col for col in data.columns if data[col].isnull().sum() > 0]
+    non_missing_cols = [col for col in data.columns if data[col].isnull().sum() == 0]
+
+    for col in missing_cols:
+        # Define a bagging model for each attribute
+        model = BaggingRegressor(DecisionTreeRegressor(), n_estimators=40, max_samples=1.0, max_features=1.0, bootstrap=False, n_jobs=-1)
+
+        # Separate rows with and without missing values in the target column
+        col_missing = data[data[col].isnull()]
+        temp = data.drop(data[data[col].isnull()].index, axis=0)
+
+        # Define features and target
+        X = temp[non_missing_cols]
+        y = temp[col]
+
+        # Fit the model and predict missing values
+        model.fit(X, y)
+        y_pred = model.predict(col_missing[non_missing_cols])
+
+        # Impute the missing values
+        data.loc[col_missing.index, col] = y_pred
+
+    print("Tree-based imputation completed successfully.")
+    return data
+
+# Create preprocessor
 def create_preprocessor():
     # Define categorical and numerical columns
-    categorical_features = ['loan_limit', 'Gender', 'approv_in_adv', 'loan_type', 'loan_purpose', 'Credit_Worthiness',
-                            'open_credit', 'business_or_commercial', 'Neg_ammortization', 'interest_only',
-                            'lump_sum_payment', 'construction_type', 'occupancy_type', 'Secured_by', 'total_units',
-                            'credit_type', 'co-applicant_credit_type', 'age', 'submission_of_application', 'Region',
-                            'Security_Type']
-    numerical_features = ['ID', 'year', 'loan_amount', 'rate_of_interest', 'Interest_rate_spread', 'Upfront_charges',
-                          'term', 'property_value', 'income', 'Credit_Score', 'LTV', 'Status', 'dtir1']
+    categorical_features = ['gender', 'education', 'marital_status']  # Example categorical columns
+    numerical_features = ['income', 'loan_amount', 'age']  # Example numerical columns
 
     # Define transformers for numerical and categorical features
     numerical_transformer = Pipeline(steps=[
@@ -70,4 +124,7 @@ def create_preprocessor():
 # Call
 data = load_loan_data()
 data = clean_data(data)
+data = encode_categorical(data)
+data = knn_impute(data)
+data = tree_imputation(data)
 preprocessor = create_preprocessor()
