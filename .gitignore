@@ -1,1 +1,3 @@
 raw_data/
+package_folder/__pycache__/
+package_folder.egg-info/
