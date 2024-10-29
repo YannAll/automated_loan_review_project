@@ -29,25 +29,30 @@ def clean_data(data):
     # Drop duplicate rows
     data = data.drop_duplicates()
 
-    # Handle missing values for numerical columns
-    num_cols = data.select_dtypes(include=['int64', 'float64']).columns
-    data[num_cols] = data[num_cols].fillna(data[num_cols].mean())
+    # Remove columns with more than 25% missing values
+    missing_percentage = data.isnull().sum() / len(data) * 100
+    data = data.loc[:, missing_percentage <= 25]
 
-    # Handle missing values for categorical columns
-    cat_cols = data.select_dtypes(include=['object']).columns
-    data[cat_cols] = data[cat_cols].fillna(data[cat_cols].mode().iloc[0])
+    # Remove samples with more than 5 missing values
+    data['missing_count'] = data.isnull().sum(axis=1)
+    data = data[data['missing_count'] <= 5]
+    data = data.drop(columns=['missing_count'])
 
     print("Data cleaned successfully.")
     return data
 
 # Encode categorical variables
 def encode_categorical(data):
-    # Encode categorical features using Label Encoding
+    # Encode categorical features using OneHotEncoder for categorical variables
     cat_cols = data.select_dtypes(include=['object']).columns
-    le = LabelEncoder()
+    encoder = OneHotEncoder(handle_unknown='ignore', sparse=False)
 
-    for col in cat_cols:
-        data[col] = le.fit_transform(data[col])
+    # Fit and transform categorical columns
+    encoded_data = pd.DataFrame(encoder.fit_transform(data[cat_cols]), columns=encoder.get_feature_names_out(cat_cols))
+
+    # Drop original categorical columns and concatenate the encoded data
+    data = data.drop(cat_cols, axis=1).reset_index(drop=True)
+    data = pd.concat([data, encoded_data], axis=1)
 
     print("Categorical variables encoded successfully.")
     return data
@@ -97,8 +102,8 @@ def tree_imputation(data):
 # Create preprocessor
 def create_preprocessor():
     # Define categorical and numerical columns
-    categorical_features = ['gender', 'education', 'marital_status']  # Example categorical columns
-    numerical_features = ['income', 'loan_amount', 'age']  # Example numerical columns
+    categorical_features = data.select_dtypes(include=['object']).columns.tolist()
+    numerical_features = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
 
     # Define transformers for numerical and categorical features
     numerical_transformer = Pipeline(steps=[
@@ -107,7 +112,6 @@ def create_preprocessor():
     ])
 
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))
     ])
 
