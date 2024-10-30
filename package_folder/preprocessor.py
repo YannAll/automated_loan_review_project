@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from pathlib import Path
+import pathlib
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
@@ -8,21 +8,21 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 
-# Load loan data
 def load_loan_data():
-    # Create a booster path
-    base_dir = Path.home() / "code" / "YannAll" / "raw_data"
-
-    # Full path to the CSV file
-    csv_file_path = base_dir / "Loan_Default.csv"
-
+    """Load .csv file from raw_data folder"""
+    #Get root_path
+    ROOT_PATH = pathlib.Path().resolve().parent
+    # Get the parent directory of the current working directory
+    raw_data_path = os.path.join(ROOT_PATH, 'raw_data', 'Loan_Default.csv')
     # Load the data into a DataFrame
-    if csv_file_path.exists():
-        data = pd.read_csv(csv_file_path)
-        print("Data loaded successfully.")
+    if os.path.exists(raw_data_path):
+        data = pd.read_csv(raw_data_path)
+        print("✅ Data loaded successfully")
         return data
     else:
-        raise FileNotFoundError(f"The file {csv_file_path} does not exist. Please check the path.")
+        raise FileNotFoundError(f"The file {raw_data_path} does not exist. Please check the path.")
+
+
 
 # Clean data
 def clean_data(data):
@@ -38,14 +38,14 @@ def clean_data(data):
     data = data[data['missing_count'] <= 5]
     data = data.drop(columns=['missing_count'])
 
-    print("Data cleaned successfully.")
+    print("✅Data cleaned successfully.")
     return data
 
 # Encode categorical variables
 def encode_categorical(data):
     # Encode categorical features using OneHotEncoder for categorical variables
     cat_cols = data.select_dtypes(include=['object']).columns
-    encoder = OneHotEncoder(handle_unknown='ignore', sparse=False)
+    encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
 
     # Fit and transform categorical columns
     encoded_data = pd.DataFrame(encoder.fit_transform(data[cat_cols]), columns=encoder.get_feature_names_out(cat_cols))
@@ -54,7 +54,7 @@ def encode_categorical(data):
     data = data.drop(cat_cols, axis=1).reset_index(drop=True)
     data = pd.concat([data, encoded_data], axis=1)
 
-    print("Categorical variables encoded successfully.")
+    print("✅Categorical variables encoded successfully.")
     return data
 
 # Impute missing values using KNN
@@ -68,8 +68,9 @@ def knn_impute(data):
     # Fit and transform the data
     data[num_cols] = knn_imputer.fit_transform(data[num_cols])
 
-    print("KNN Imputation completed successfully.")
+    print("✅KNN Imputation completed successfully.")
     return data
+
 
 # Tree-based imputation
 def tree_imputation(data):
@@ -96,7 +97,7 @@ def tree_imputation(data):
         # Impute the missing values
         data.loc[col_missing.index, col] = y_pred
 
-    print("Tree-based imputation completed successfully.")
+    print("✅Tree-based imputation completed successfully.")
     return data
 
 # Create preprocessor
