@@ -11,7 +11,7 @@ from sklearn.tree import DecisionTreeRegressor
 # Load loan data
 def load_loan_data():
     # Create a booster path
-    base_dir = Path.home() / "code" / "YannAll" / "raw_data"
+    base_dir = Path.home() / "code" / "YannAll" / "automated_loan_review_prject" / "raw_data"
 
     # Full path to the CSV file
     csv_file_path = base_dir / "Loan_Default.csv"
