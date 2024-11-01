@@ -1,20 +1,20 @@
 import os
-import pandas as pd
 import pathlib
+import pandas as pd
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
-from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 
+# Load loan data
 def load_loan_data():
-    """Load .csv file from raw_data folder"""
-    #Get root_path
     ROOT_PATH = pathlib.Path().resolve().parent
-    # Get the parent directory of the current working directory
     raw_data_path = os.path.join(ROOT_PATH, 'raw_data', 'Loan_Default.csv')
-    # Load the data into a DataFrame
+    print(f"🔍 Checking for file at path: {raw_data_path}")
+
     if os.path.exists(raw_data_path):
         data = pd.read_csv(raw_data_path)
         print("✅ Data loaded successfully")
@@ -22,114 +22,168 @@ def load_loan_data():
     else:
         raise FileNotFoundError(f"The file {raw_data_path} does not exist. Please check the path.")
 
+# Step 1: Clean data transformer
+class DataCleaner(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
 
+    def transform(self, X):
+        # Drop duplicate rows
+        X = X.drop_duplicates()
 
-# Clean data
-def clean_data(data):
-    # Drop duplicate rows
-    data = data.drop_duplicates()
+        # Remove columns with more than 25% missing values
+        missing_percentage = X.isnull().sum() / len(X) * 100
+        X = X.loc[:, missing_percentage <= 25]
 
-    # Remove columns with more than 25% missing values
-    missing_percentage = data.isnull().sum() / len(data) * 100
-    data = data.loc[:, missing_percentage <= 25]
+        # Remove rows with more than 5 missing values
+        X['missing_count'] = X.isnull().sum(axis=1)
+        X = X[X['missing_count'] <= 5].drop(columns=['missing_count'])
 
-    # Remove samples with more than 5 missing values
-    data['missing_count'] = data.isnull().sum(axis=1)
-    data = data[data['missing_count'] <= 5]
-    data = data.drop(columns=['missing_count'])
+        print("✅ Data cleaned")
+        return X
 
-    print("✅Data cleaned successfully.")
-    return data
+# Step 2: Encode categorical variables
+class CategoricalEncoder(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        # Cast 'term' to object so it is treated as a categorical variable
+        if 'term' in X.columns:
+            X['term'] = X['term'].astype(str)
 
-# Encode categorical variables
-def encode_categorical(data):
-    # Encode categorical features using OneHotEncoder for categorical variables
-    cat_cols = data.select_dtypes(include=['object']).columns
-    encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        # Identify all categorical columns in the DataFrame, including 'term'
+        self.cat_cols = [col for col in X.columns if X[col].dtype == 'object']
 
-    # Fit and transform categorical columns
-    encoded_data = pd.DataFrame(encoder.fit_transform(data[cat_cols]), columns=encoder.get_feature_names_out(cat_cols))
+        # Initialize the OneHotEncoder
+        self.encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        self.encoder.fit(X[self.cat_cols])
+        return self
 
-    # Drop original categorical columns and concatenate the encoded data
-    data = data.drop(cat_cols, axis=1).reset_index(drop=True)
-    data = pd.concat([data, encoded_data], axis=1)
+    def transform(self, X):
+        # Cast 'term' to object so it is treated as a categorical variable
+        if 'term' in X.columns:
+            X['term'] = X['term'].astype(str)
 
-    print("✅Categorical variables encoded successfully.")
-    return data
+        # Perform One-Hot Encoding for all categorical columns
+        encoded_data = pd.DataFrame(self.encoder.transform(X[self.cat_cols]), columns=self.encoder.get_feature_names_out(self.cat_cols))
 
-# Impute missing values using KNN
-def knn_impute(data):
-    # Select numerical columns for KNN Imputation
-    num_cols = [col for col in data.columns if data[col].dtype in ['int64', 'float64']]
+        # Drop the original categorical columns and concatenate the encoded columns
+        X = X.drop(self.cat_cols, axis=1).reset_index(drop=True)
+        X = pd.concat([X, encoded_data.reset_index(drop=True)], axis=1)
 
-    # Initialize KNN Imputer
-    knn_imputer = KNNImputer(n_neighbors=3)
+        print("✅ Categorical variables encoded successfully, including 'term'")
+        return X
 
-    # Fit and transform the data
-    data[num_cols] = knn_imputer.fit_transform(data[num_cols])
+# Step 3: Outlier removal transformer
+class OutlierRemover(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        # Identify non-binary numerical columns
+        self.numerical_columns = [col for col in X.select_dtypes(include=['float64', 'int64']).columns if X[col].nunique() > 2]
+        return self
 
-    print("✅KNN Imputation completed successfully.")
-    return data
+    def transform(self, X):
+        for col in self.numerical_columns:
+            Q1 = X[col].quantile(0.25)
+            Q3 = X[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 3 * IQR
+            upper_bound = Q3 + 3 * IQR
+            X = X[(X[col] >= lower_bound) & (X[col] <= upper_bound)]
+        print("✅ Outliers removed based on 3 * IQR threshold")
+        return X
 
+# Step 4: Drop unnecessary columns
+class ColumnDropper(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        self.drop_columns = ['year', 'ID']
+        return self
 
-# Tree-based imputation
-def tree_imputation(data):
-    # Define columns with missing values
-    missing_cols = [col for col in data.columns if data[col].isnull().sum() > 0]
-    non_missing_cols = [col for col in data.columns if data[col].isnull().sum() == 0]
+    def transform(self, X):
+        X = X.drop(columns=self.drop_columns, errors='ignore')
+        print("✅ Columns 'year' and 'ID' dropped")
+        return X
 
-    for col in missing_cols:
-        # Define a bagging model for each attribute
-        model = BaggingRegressor(DecisionTreeRegressor(), n_estimators=40, max_samples=1.0, max_features=1.0, bootstrap=False, n_jobs=-1)
+# Step 5: Impute missing values with KNN
+class KNNImputerTransformer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        self.knn_imputer = KNNImputer(n_neighbors=3)
+        self.num_cols = X.select_dtypes(include=['int64', 'float64']).columns
+        self.knn_imputer.fit(X[self.num_cols])
+        return self
 
-        # Separate rows with and without missing values in the target column
-        col_missing = data[data[col].isnull()]
-        temp = data.drop(data[data[col].isnull()].index, axis=0)
+    def transform(self, X):
+        X[self.num_cols] = self.knn_imputer.transform(X[self.num_cols])
+        print("✅ Missing values imputed with KNN Imputer")
+        return X
 
-        # Define features and target
-        X = temp[non_missing_cols]
-        y = temp[col]
+# Step 6: Tree-based imputation for remaining missing values
+class TreeImputer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        self.models = {}
+        self.missing_cols = [col for col in X.columns if X[col].isnull().sum() > 0]
+        self.non_missing_cols = [col for col in X.columns if X[col].isnull().sum() == 0]
 
-        # Fit the model and predict missing values
-        model.fit(X, y)
-        y_pred = model.predict(col_missing[non_missing_cols])
+        for col in self.missing_cols:
+            model = BaggingRegressor(DecisionTreeRegressor(), n_estimators=40, max_samples=1.0, max_features=1.0, bootstrap=False, n_jobs=-1)
+            col_missing = X[X[col].isnull()]
+            temp = X.drop(col_missing.index, axis=0)
+            X_train, y_train = temp[self.non_missing_cols], temp[col]
+            model.fit(X_train, y_train)
+            self.models[col] = model
+        print("✅ Tree-based imputation models fitted")
+        return self
 
-        # Impute the missing values
-        data.loc[col_missing.index, col] = y_pred
+    def transform(self, X):
+        for col, model in self.models.items():
+            col_missing = X[X[col].isnull()]
+            if not col_missing.empty:
+                X.loc[col_missing.index, col] = model.predict(col_missing[self.non_missing_cols])
+        print("✅ Missing values imputed with tree-based models")
+        return X
 
-    print("✅Tree-based imputation completed successfully.")
-    return data
+# Step 7: Scaling continuous variables
+class MinMaxScalerTransformer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        self.continuous_columns = [col for col in X.select_dtypes(include=['float64', 'int64']).columns if X[col].nunique() > 2 and col != 'term']
+        self.scaler = MinMaxScaler()
+        self.scaler.fit(X[self.continuous_columns])
+        return self
 
-# Create preprocessor
-def create_preprocessor():
-    # Define categorical and numerical columns
-    categorical_features = data.select_dtypes(include=['object']).columns.tolist()
-    numerical_features = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    def transform(self, X):
+        # Scale continuous columns
+        if self.continuous_columns:
+            X[self.continuous_columns] = self.scaler.transform(X[self.continuous_columns])
+            print("✅ Continuous variables scaled between 0 and 1")
+        else:
+            print("⚠️ No continuous variables found to scale")
+        return X
 
-    # Define transformers for numerical and categorical features
-    numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='mean')),
-        ('scaler', StandardScaler())
+# Full preprocessing pipeline
+def create_preprocessing_pipeline():
+    pipeline = Pipeline([
+        ('cleaner', DataCleaner()),
+        ('encoder', CategoricalEncoder()),
+        ('outlier_remover', OutlierRemover()),
+        ('dropper', ColumnDropper()),
+        ('knn_imputer', KNNImputerTransformer()),
+        ('tree_imputer', TreeImputer()),
+        ('scaler', MinMaxScalerTransformer())
     ])
+    return pipeline
 
-    categorical_transformer = Pipeline(steps=[
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
+# Main processing function
+def process_data():
+    data = load_loan_data()
 
-    # Combine transformers into a column transformer
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numerical_transformer, numerical_features),
-            ('cat', categorical_transformer, categorical_features)
-        ]
-    )
+    # Full pipeline with all steps
+    full_pipeline = create_preprocessing_pipeline()
 
-    return preprocessor
+    # Process data through the pipeline
+    data_processed = full_pipeline.fit_transform(data)
 
-# Call
-data = load_loan_data()
-data = clean_data(data)
-data = encode_categorical(data)
-data = knn_impute(data)
-data = tree_imputation(data)
-preprocessor = create_preprocessor()
+    # Save the processed data
+    output_path = os.path.join(pathlib.Path().resolve().parent, 'raw_data', 'loan_preprocessed.csv')
+    data_processed.to_csv(output_path, index=False)
+    print(f"✅ Transformed data saved successfully at {output_path}")
+
+# Run the processing pipeline
+if __name__ == "__main__":
+    process_data()
