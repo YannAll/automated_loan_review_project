@@ -4,10 +4,8 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
-from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import BaggingRegressor
-from sklearn.tree import DecisionTreeRegressor
 
 # Load loan data
 def load_loan_data():
@@ -92,63 +90,47 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         print("✅ Categorical variables encoded successfully, including 'term'")
         return X
 
-# Step 5: Impute missing values with KNN
-class KNNImputerTransformer(BaseEstimator, TransformerMixin):
+# Step 5: Impute missing values with Simple Imputer
+class SimpleImputerTransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
-        self.knn_imputer = KNNImputer(n_neighbors=3)
         self.num_cols = X.select_dtypes(include=['int64', 'float64']).columns
-        self.knn_imputer.fit(X[self.num_cols])
+        self.imputer = SimpleImputer(strategy='mean')
+        self.imputer.fit(X[self.num_cols])
         return self
 
     def transform(self, X):
-        X[self.num_cols] = self.knn_imputer.transform(X[self.num_cols])
-        print("✅ Missing values imputed with KNN Imputer")
+        # Ensure no NaN values remain after imputation
+        X[self.num_cols] = self.imputer.transform(X[self.num_cols])
+        X[self.num_cols] = X[self.num_cols].fillna(0)  # Fill remaining NaNs with 0 to prevent issues
+        print("✅ Missing values imputed with Simple Imputer (mean), remaining NaNs filled with 0")
         return X
 
-# Step 6: Tree-based imputation for remaining missing values
-class TreeImputer(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None):
-        self.models = {}
-        self.missing_cols = [col for col in X.columns if X[col].isnull().sum() > 0]
-        self.non_missing_cols = [col for col in X.columns if X[col].isnull().sum() == 0]
-
-        for col in self.missing_cols:
-            model = BaggingRegressor(DecisionTreeRegressor(), n_estimators=40, max_samples=1.0, max_features=1.0, bootstrap=False, n_jobs=-1)
-            col_missing = X[X[col].isnull()]
-            temp = X.drop(col_missing.index, axis=0)
-            X_train, y_train = temp[self.non_missing_cols], temp[col]
-            model.fit(X_train, y_train)
-            self.models[col] = model
-        print("✅ Tree-based imputation models fitted")
-        return self
-
-    def transform(self, X):
-        for col, model in self.models.items():
-            col_missing = X[X[col].isnull()]
-            if not col_missing.empty:
-                X.loc[col_missing.index, col] = model.predict(col_missing[self.non_missing_cols])
-        print("✅ Missing values imputed with tree-based models")
-        return X
-
-# Step 7: Outlier removal transformer
+# Step 6: Outlier removal transformer
 class OutlierRemover(BaseEstimator, TransformerMixin):
+    def __init__(self, iqr_factor=3):
+        self.iqr_factor = iqr_factor
+
     def fit(self, X, y=None):
         # Identify non-binary numerical columns
         self.numerical_columns = [col for col in X.select_dtypes(include=['float64', 'int64']).columns if X[col].nunique() > 2]
         return self
 
     def transform(self, X):
+        if len(X) < 50:
+            print("⚠️ Small dataset detected, skipping outlier removal to avoid excessive data loss")
+            return X
+
         for col in self.numerical_columns:
             Q1 = X[col].quantile(0.25)
             Q3 = X[col].quantile(0.75)
             IQR = Q3 - Q1
-            lower_bound = Q1 - 3 * IQR
-            upper_bound = Q3 + 3 * IQR
+            lower_bound = Q1 - self.iqr_factor * IQR
+            upper_bound = Q3 + self.iqr_factor * IQR
             X = X[(X[col] >= lower_bound) & (X[col] <= upper_bound)]
-        print("✅ Outliers removed based on 3 * IQR threshold")
+        print("✅ Outliers removed based on IQR threshold")
         return X
 
-# Step 8: Scaling continuous variables
+# Step 7: Scaling continuous variables
 class MinMaxScalerTransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         self.continuous_columns = [col for col in X.select_dtypes(include=['float64', 'int64']).columns if X[col].nunique() > 2 and col != 'term']
@@ -172,8 +154,7 @@ def create_preprocessing_pipeline():
         ('dropper', ColumnDropper()),
         ('cat_imputer', CategoricalImputer()),
         ('encoder', CategoricalEncoder()),
-        ('knn_imputer', KNNImputerTransformer()),
-        ('tree_imputer', TreeImputer()),
+        ('simple_imputer', SimpleImputerTransformer()),
         ('outlier_remover', OutlierRemover()),
         ('scaler', MinMaxScalerTransformer())
     ])
