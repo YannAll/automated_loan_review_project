@@ -41,7 +41,7 @@ class DataCleaner(BaseEstimator, TransformerMixin):
 # Step 2: Drop unnecessary columns
 class ColumnDropper(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
-        self.drop_columns = ['year', 'ID']
+        self.drop_columns = ['year', 'ID', 'rate_of_interest', 'Upfront_charges', 'Interest_rate_spread']
         return self
 
     def transform(self, X):
