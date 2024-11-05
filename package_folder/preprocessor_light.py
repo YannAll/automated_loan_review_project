@@ -29,9 +29,13 @@ class DataCleaner(BaseEstimator, TransformerMixin):
         # Drop duplicate rows
         X = X.drop_duplicates()
 
-        # Remove columns with more than 25% missing values
-        missing_percentage = X.isnull().sum() / len(X) * 100
-        X = X.loc[:, missing_percentage <= 25]
+        # Remove columns with more than 30% missing values
+        if len(X) < 50:
+            print("⚠️ Small dataset detected, skipping column removal")
+            return X
+        else:
+            missing_percentage = X.isnull().sum() / len(X) * 100
+            X = X.loc[:, missing_percentage <= 30]
 
         print("✅ Data cleaned")
         return X
@@ -44,7 +48,7 @@ class ColumnDropper(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.drop(columns=self.drop_columns, errors='ignore')
-        print("✅ Columns 'year' and 'ID' dropped")
+        print("✅ Columns ['year', 'ID'] dropped")
         return X
 
 # Step 3: Impute missing values in categorical variables
@@ -119,15 +123,15 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         if len(X) < 50:
             print("⚠️ Small dataset detected, skipping outlier removal to avoid excessive data loss")
             return X
-
-        for col in self.numerical_columns:
-            Q1 = X[col].quantile(0.25)
-            Q3 = X[col].quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - self.iqr_factor * IQR
-            upper_bound = Q3 + self.iqr_factor * IQR
-            X = X[(X[col] >= lower_bound) & (X[col] <= upper_bound)]
-        print("✅ Outliers removed based on IQR threshold")
+        else:
+            for col in self.numerical_columns:
+                Q1 = X[col].quantile(0.25)
+                Q3 = X[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - self.iqr_factor * IQR
+                upper_bound = Q3 + self.iqr_factor * IQR
+                X = X[(X[col] >= lower_bound) & (X[col] <= upper_bound)]
+            print("✅ Outliers removed based on IQR threshold")
         return X
 
 # Step 7: Scaling continuous variables
