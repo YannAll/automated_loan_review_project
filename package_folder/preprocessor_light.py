@@ -179,6 +179,8 @@ def process_data():
     data_processed.to_csv(output_path, index=False)
     print(f"✅ Transformed data saved successfully at {output_path}")
 
+    return full_pipeline
+
 # Run the processing pipeline
 if __name__ == "__main__":
     process_data()
