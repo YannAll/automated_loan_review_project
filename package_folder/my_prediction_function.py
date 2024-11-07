@@ -22,8 +22,11 @@ from package_folder.preprocessor_light import * #load_loan_data
 
 def creating_full_dataframe_from_inputs(loan_limit, income, age):
     # Get the path to the Loan_Default.csv file (raw data))
-    ROOT_PATH = pathlib.Path().resolve().parent # Get the parent directory of the current working directory
+    ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
     raw_data_path = os.path.join(ROOT_PATH, 'raw_data', 'Loan_Default.csv')
+
+    # Printing raw_data_path
+    print('Raw_data_path: ', raw_data_path)
 
     # Convert the Loan_Default.file into a DataFrame
     data_raw = pd.read_csv(raw_data_path)
@@ -48,7 +51,7 @@ def my_prediction_function(loan_limit, income, age):
     X_user_processed = preprocessor.transform(X_user).drop(columns="Status")
 
     # Load the model from the pretrain model pickle file
-    ROOT_PATH = pathlib.Path().resolve().parent # Get the parent directory of the current working directory
+    ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
     model_path = os.path.join(ROOT_PATH, 'models', 'mvp_model.pkl')
     print(f"Path of the model.pkl:\n{model_path}\n")
     with open(model_path, 'rb') as file:

@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 
 # Load loan data
 def load_loan_data():
-    ROOT_PATH = pathlib.Path().resolve().parent
+    ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
     raw_data_path = os.path.join(ROOT_PATH, 'raw_data', 'Loan_Default.csv')
     print(f"🔍 Checking for file at path: {raw_data_path}")
 
@@ -175,7 +175,9 @@ def process_data():
     data_processed = full_pipeline.fit_transform(data)
 
     # Save the processed data
-    output_path = os.path.join(pathlib.Path().resolve().parent, 'raw_data', 'loan_preprocessed.csv')
+    ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
+    output_path = os.path.join(ROOT_PATH, 'raw_data', 'loan_preprocessed.csv')
+
     data_processed.to_csv(output_path, index=False)
     print(f"✅ Transformed data saved successfully at {output_path}")
 
