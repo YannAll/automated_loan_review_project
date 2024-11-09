@@ -1,6 +1,6 @@
-fastapi
-uvicorn
-
-pandas
-kagglehub
-scikit-learn
+fastapi==0.115.4
+kagglehub==0.3.3
+numpy==2.1.2
+pandas==2.2.3
+scikit-learn==1.5.2
+uvicorn==0.32.0
