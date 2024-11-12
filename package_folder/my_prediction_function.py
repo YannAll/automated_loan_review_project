@@ -1,4 +1,12 @@
+# def my_prediction_function(age,income,loan_limit):
+#     if int(age)>20 and int(income)>20000 and int(loan_limit)<int(income*10):
+#         return f"your application for a loan of {loan_limit} EUR is approved"
+#     else:
+#         return f"your application for a loan of {loan_limit} EUR is not approved"
 
+# print(my_prediction_function(21,30000,500000))
+
+# General
 import os
 import pathlib
 import pickle
@@ -7,10 +15,10 @@ import pickle
 import pandas as pd
 
 # Machine learning
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
 
 # Import preprocess_light functions
-from package_folder.preprocessor_for_regression import *
+from package_folder.preprocessor_light import * #load_loan_data
 
 def creating_full_dataframe_from_inputs(loan_limit, income, age):
     # Get the path to the Loan_Default.csv file (raw data))

@@ -42,7 +42,7 @@ def creating_full_dataframe_from_inputs(loan_limit, income, age):
     return X_user
 
 
-def my_prediction_function(loan_limit, income, age):
+def prediction_function_for_regression(loan_limit, income, age):
     # Create the input dataframe
     X_user = creating_full_dataframe_from_inputs(loan_limit, income, age)
 
@@ -71,4 +71,4 @@ def my_prediction_function(loan_limit, income, age):
 
 # Run the processing pipeline
 if __name__ == "__main__":
-    my_prediction_function("cf", 5760.0, "45-54")
+    prediction_function_for_regression("cf", 25000.0, "45-54")
