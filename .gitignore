@@ -10,3 +10,4 @@ package_folder.egg-info/
 *checkpoint.ipynb
 *.ipynb_checkpoints
 __pycache__
+checkout/

@@ -7,6 +7,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
+from sklearn.compose import ColumnTransformer
 
 # Load loan data
 def load_loan_data():
@@ -44,12 +45,12 @@ class DataCleaner(BaseEstimator, TransformerMixin):
 # Step 2: Drop unnecessary columns
 class ColumnDropper(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
-        self.drop_columns = ['rate_of_interest','credit_type','year','ID','dtir1','Upfront_charges', 'LTV', 'Interest_rate_spread']
+        self.drop_columns = ['credit_type','year','ID','dtir1','Upfront_charges', 'LTV', 'Interest_rate_spread']
         return self
 
     def transform(self, X):
         X = X.drop(columns=self.drop_columns, errors='ignore')
-        print("✅ Columns ['rate_of_interest','credit_type','year','ID','dtir1','Upfront_charges', 'LTV', 'Interest_rate_spread'] dropped")
+        print("✅ Columns ['credit_type','year','ID','dtir1','Upfront_charges', 'LTV', 'Interest_rate_spread'] dropped")
         return X
 
 # Step 3: Impute missing values in categorical variables
@@ -152,6 +153,7 @@ class CustomStandardScaler(BaseEstimator, TransformerMixin):
             print("⚠️ No continuous variables found to scale")
         return X
 
+
 # Step 8: Reduce dimensionality with a PCA
 class CustomPCA(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
@@ -162,50 +164,53 @@ class CustomPCA(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = self.pca.transform(X)
         X=pd.DataFrame(X,columns=[f"PC{i}" for i in range(1,25)])
-        print("✅ Dimensionality reduced to 28 features with a PCA")
+        print("✅ Dimensionality reduced to 24 features with a PCA")
         return X
 
 # Full preprocessing pipeline
 def create_preprocessing_pipeline():
     pipeline = Pipeline([
         ('cleaner', DataCleaner()),
-        ('dropper', ColumnDropper()),
+        #('dropper', ColumnDropper()),
         ('cat_imputer', CategoricalImputer()),
         ('encoder', CategoricalEncoder()),
         ('simple_imputer', SimpleImputerTransformer()),
-        ('outlier_remover', OutlierRemover()),
-        ('scaler', CustomStandardScaler())
+        #('outlier_remover', OutlierRemover()),
+        ('standard_scaler', CustomStandardScaler()),
+        ('PCA', CustomPCA())
         ])
-    return pipeline
+
+    feature_columns=['ID', 'year', 'loan_limit', 'Gender', 'approv_in_adv', 'loan_type',
+       'loan_purpose', 'Credit_Worthiness', 'open_credit',
+       'business_or_commercial', 'loan_amount',
+       'Interest_rate_spread', 'Upfront_charges', 'term', 'Neg_ammortization',
+       'interest_only', 'lump_sum_payment', 'property_value',
+       'construction_type', 'occupancy_type', 'Secured_by', 'total_units',
+       'income', 'credit_type', 'Credit_Score', 'co-applicant_credit_type',
+       'age', 'submission_of_application', 'LTV', 'Region', 'Security_Type',
+       'Status', 'dtir1']
+
+    full_pipeline=ColumnTransformer(transformers=
+        [('pipeline',pipeline,feature_columns)],
+        remainder='passthrough')
+
+    return full_pipeline
 
 # Main processing function
 def process_data():
+
+    #Load data
     data = load_loan_data()
+
+    #Remove null values
+    data_cleaned=data.dropna()
+    print(data_cleaned['Status'].sum())
 
     # Full pipeline with all steps
     full_pipeline = create_preprocessing_pipeline()
 
     # Process data through the pipeline
-    data_processed = full_pipeline.fit_transform(data)
-
-    #Run the PCA model to reduce dimensionality to 24 features
-    X = data_processed.drop(columns='Status')
-    y = data_processed["Status"]
-    pca_24=CustomPCA()
-    pca_24.fit(X)
-    X=pca_24.transform(X)
-    X=pd.DataFrame(X,columns=[f"PC{i}" for i in range(1,24)])
-    X['Status']=y
-    data_processed=X
-
-    # Save the processed data
-    ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
-    output_path = os.path.join(ROOT_PATH, 'raw_data', 'loan_preprocessed.csv')
-
-    data_processed.to_csv(output_path, index=False)
-    print(f"✅ Transformed data saved successfully at {output_path}")
-
-    print(data_processed.head(1))
+    data_processed = full_pipeline.fit_transform(data_cleaned)
 
     return full_pipeline
 
