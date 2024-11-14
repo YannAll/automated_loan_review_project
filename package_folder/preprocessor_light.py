@@ -43,12 +43,12 @@ class DataCleaner(BaseEstimator, TransformerMixin):
 # Step 2: Drop unnecessary columns
 class ColumnDropper(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
-        self.drop_columns = ['year', 'ID']
+        self.drop_columns = ['year', 'ID', 'Interest_rate_spread', 'Upfront_charges', 'LTV', 'dtir1']
         return self
 
     def transform(self, X):
         X = X.drop(columns=self.drop_columns, errors='ignore')
-        print("✅ Columns ['year', 'ID'] dropped")
+        print("✅ Columns ['year', 'ID', 'Interest_rate_spread', 'Upfront_charges', 'LTV', 'dtir1'] dropped")
         return X
 
 # Step 3: Impute missing values in categorical variables
