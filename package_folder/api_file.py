@@ -70,12 +70,13 @@ def predict(loan_limit=None,
                                         age=age,
                                         Region=Region,
                                         Security_Type=Security_Type)),2)
+        interest_rate = str(interest_rate)+'%'
 
     else:
         status='Your credit application is not approved'
         interest_rate='Not applicable'
 
-    result = {"status": status, "interest_rate": f"{interest_rate}%"}
+    result = {"status": status, "interest_rate": interest_rate}
 
     # Return status and interest rate to user
     return result
