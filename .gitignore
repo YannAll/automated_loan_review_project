@@ -1,13 +1,15 @@
 .env
 
-#Raw data
+# Raw data
 raw_data/
 package_folder/__pycache__/
 package_folder.egg-info/
 
-
-# Jupiter Notebook #
+# Jupiter Notebook
 *checkpoint.ipynb
 *.ipynb_checkpoints
 __pycache__
 checkout/
+
+# Ignore preprocessing log file
+preprocessing.log
